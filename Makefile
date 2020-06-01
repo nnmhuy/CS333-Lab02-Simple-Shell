@@ -1,4 +1,4 @@
-CC=g++
+CC=gcc
 CFLAGS= -Wall -g
 
 run:
@@ -6,7 +6,7 @@ run:
 	./simple-shell
 
 all: 
-	$(CC) $(CFLAGS) *.c -o simple-shell
+	$(CC) $(CFLAGS) simple-shell.c -o simple-shell
 
 clean:
 	rm -rf *o main
