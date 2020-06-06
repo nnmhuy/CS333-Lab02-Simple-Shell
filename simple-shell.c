@@ -135,17 +135,17 @@ void executeRedirectCommand(char* command) {
 	if (child_pid == 0) { 
 		// Executing inside child process
 		if (strstr(command, ">") != NULL) {
-			newfd = open(args[2],  O_WRONLY | O_CREAT | O_TRUNC, 0644);
+			newfd = open(args[index+1],  O_WRONLY | O_CREAT | O_TRUNC, 0644);
 			if (newfd<0) {
-			perror("open 1 failed");	/* open failed */
+			perror("open file output failed");	/* open failed */
 			exit(1);
 			}
 			ret = dup2(newfd, STDOUT_FILENO);
 		}
 		else {
-			newfd = open(args[2],  O_RDONLY, 0);
+			newfd = open(args[index+1],  O_RDONLY, 0);
 			if (newfd<0) {
-			perror("open 2 failed");	/* open failed */
+			perror("open file input failed");	/* open failed */
 			exit(1);
 			}
 			ret = dup2(newfd, STDIN_FILENO);
