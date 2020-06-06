@@ -10,4 +10,5 @@ all:
 
 clean:
 	rm -rf *o main
+	rm -rf simple-shell
 	

@@ -289,9 +289,22 @@ int getCommandType(char * command) {
 	return 0; // default normal command
 }
 
-int main(void) {
-	char command[MAX_LENGTH];
+void getFirstWord(char* str, char* firstWord)
+{
+  int index = 0, i;
+  while(str[index] == ' ' || str[index] == '\t' || str[index] == '\n')
+    index++;
+	
+  i = 0;
+  while(str[i + index] != '\0' && str[i + index] != ' ' && str[index] != '\t') {
+    firstWord[i] = str[i + index];
+    i++;
+  }
+	firstWord[i] = '\0';
+}
 
+int main(void) {
+	char command[MAX_LENGTH], firstWord[MAX_LENGTH];
 	int should_run = 1;
 
 	while (should_run) {
@@ -305,6 +318,13 @@ int main(void) {
     		*pos = '\0';
 		}
 		
+		// check exit
+		getFirstWord(command, firstWord);
+		if (strcmp(firstWord, "exit") == 0) {
+			should_run = 0;
+			break;
+		}
+
 		//Parse command and arguments.
 		int commandType = getCommandType(command);
 
