@@ -111,15 +111,17 @@ void executeRedirectCommand(char* command) {
 	pid_t child_pid;
 	int stat_loc;
 	int newfd, ret;
+	bool isOut = true;
 	// extract arguments from command
 	char** args = getArgs(command);
 	
 	char** a1 = (char**)malloc(MAX_ARGUMENTS * sizeof(char *));
 	int index = 0;
-	while (strstr(args[index],">") == NULL && strstr(args[index],"<") == NULL) {
+	while (strcmp(args[index],">") != 0 && strcmp(args[index],"<") != 0) {
 		a1[index] = args[index];
 		index++;
 	}
+	if (strcmp(args[index],"<") == 0) isOut = false;
 	a1[index] = NULL;
 	
 	bool runInBackground = extractRunInBackground(args);
@@ -137,7 +139,7 @@ void executeRedirectCommand(char* command) {
 	
 	if (child_pid == 0) { 
 		// Executing inside child process
-		if (strstr(command, ">") != NULL) {
+		if (isOut) {
 			newfd = open(args[index+1],  O_WRONLY | O_CREAT | O_TRUNC, 0644);
 			if (newfd<0) {
 				perror("open file output failed");	/* open failed */
@@ -199,7 +201,7 @@ void executePipeCommand(char* command) {
 	// extract the first UNIX command before the pipe symbol (|)
 	char** a1 = (char**)malloc(MAX_ARGUMENTS * sizeof(char *));
 	int index = 0;
-	while (strstr(args[index],"|") == NULL) {
+	while (strcmp(args[index],"|") != 0) {
 		a1[index] = args[index];
 		index++;
 	}
@@ -281,30 +283,42 @@ void executePipeCommand(char* command) {
 	free(a2);
 }
 
+int getCommandType(char * command) {
+	char** args = getArgs(command);
+	int type = 0, // default normal command
+		index = 0;
+	while (args[index] != NULL) {
+		if (strcmp(args[index], "!!") == 0) {
+			type = 1; break;
+		}
+		if (strcmp(args[index], ">") == 0 || strcmp(args[index], "<") == 0) {
+			type = 2; break;
+		}
+		if (strcmp(args[index], "|") == 0) {
+			type = 3; break;
+		}
+		index ++;
+	}
+	free(args);
+	printf("type:%d\n", type);
+	return type; 
+}
+
 void executeLastCommand() {
 	if (strcmp(lastCommand, "") == 0) { // catch empty history
 		printf("No commands in history.\n");
+		return;
 	}
-	else if (strstr(lastCommand, ">") != NULL || strstr(lastCommand, "<") != NULL) { // command with redirecting
+	int type = getCommandType(lastCommand);
+	if (type == 2) {
 		executeRedirectCommand(lastCommand);	
+		return;
 	}
-	else if (strstr(lastCommand, "|")) { // pipe command
+	if (type == 3) {
 		executePipeCommand(lastCommand);
+		return;
 	}
-	else executeNormalCommand(lastCommand);
-}
-
-int getCommandType(char * command) {
-	if (strcmp(command, "!!") == 0) { // history command
-		return 1;
-	}
-	if (strstr(command, ">") != NULL || strstr(command, "<") != NULL) { // command with redirecting
-		return 2;	
-	}
-	if (strstr(command, "|")) { // pipe command
-		return 3;
-	}
-	return 0; // default normal command
+	executeNormalCommand(lastCommand);
 }
 
 void getFirstWord(char* str, char* firstWord)
