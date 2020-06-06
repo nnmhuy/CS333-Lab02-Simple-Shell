@@ -11,14 +11,17 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <fcntl.h>
 
 #define MAX_LENGTH 80 // The maximum length of the commands
 #define MAX_ARGUMENTS 40
 char lastCommand[MAX_LENGTH];
+char tmp[MAX_LENGTH];
 
 char** getArgs(char* command) {
+	strcpy(tmp, command);
 	// remove trailling endline '\n' in command
-	char *p = strchr(command, '\n');
+	char *p = strchr(tmp, '\n');
 	if (p)  *p = 0;
 
 	char **args = (char**)malloc(MAX_ARGUMENTS * sizeof(char *));
@@ -32,14 +35,12 @@ char** getArgs(char* command) {
     char *parsed;
     int index = 0;
 
-    parsed = strtok(command, separator); // split args by space
+    parsed = strtok(tmp, separator); // split args by space
     while (parsed != NULL) {
         args[index] = parsed;
         index++;
-
         parsed = strtok(NULL, separator);
     }
-
     args[index] = NULL; // insert NULL at the end of args list
     return args;
 }
@@ -99,11 +100,180 @@ void executeNormalCommand(char* command) {
 	}
 }
 
+void executeRedirectCommand(char* command) {
+	if (strcmp(command, "") == 0) { // check for empty command
+		return;
+	}
+	// store command to history
+	strcpy(lastCommand, command);
+
+	pid_t child_pid;
+	int stat_loc;
+	int newfd, ret;
+	// extract arguments from command
+	char** args = getArgs(command);
+	
+	char** a1 = (char**)malloc(MAX_ARGUMENTS * sizeof(char *));
+	int index = 0;
+	while (strstr(args[index],">") == NULL && strstr(args[index],"<") == NULL) {
+		a1[index] = args[index];
+		index++;
+	}
+	a1[index] = NULL;
+	
+	bool runInBackground = extractRunInBackground(args);
+	
+	// create a child process and store its id in child_pid
+	child_pid = fork();
+	
+	if (child_pid < 0) {
+		perror("Fork failed");
+		exit(1);
+	}
+	
+	
+	if (child_pid == 0) { 
+		// Executing inside child process
+		if (strstr(command, ">") != NULL) {
+			newfd = open(args[2],  O_WRONLY | O_CREAT | O_TRUNC, 0644);
+			if (newfd<0) {
+			perror("open 1 failed");	/* open failed */
+			exit(1);
+			}
+			ret = dup2(newfd, STDOUT_FILENO);
+		}
+		else {
+			newfd = open(args[2],  O_RDONLY, 0);
+			if (newfd<0) {
+			perror("open 2 failed");	/* open failed */
+			exit(1);
+			}
+			ret = dup2(newfd, STDIN_FILENO);
+		}
+		if (ret < 0) {
+			perror("dup2 failed");
+			exit(1);
+		}
+		close(newfd);
+		if (execvp(a1[0], a1) < 0) { // catch error when executing command fail
+			perror(a1[0]);
+			exit(1);
+		}
+		// if execvp success -> it never return and not run any code more
+	} else { 
+		// Executing inside parent process 
+		if (!runInBackground) {	// wait for child process stop
+			waitpid(child_pid, &stat_loc, WUNTRACED);
+			free(args); // free up memory for arguments
+			free(a1);
+		}
+		return;
+	}
+}
+
+void executePipeCommand(char* command) {
+	if (strcmp(command, "") == 0) { // check for empty command
+		return;
+	}
+	printf("command: %s\n", command);
+	// store command to history
+	strcpy(lastCommand, command);
+
+	pid_t child_pid;
+	int stat_loc;
+	int fd[2];
+	int WRITE_END = 1;
+	int READ_END = 0;
+	// extract arguments from command
+	char** args = getArgs(command);
+	
+	// extract the first UNIX command before the pipe symbol (|)
+	char** a1 = (char**)malloc(MAX_ARGUMENTS * sizeof(char *));
+	int index = 0;
+	while (strstr(args[index],"|") == NULL) {
+		a1[index] = args[index];
+		printf("a1: %s\n", a1[index]);
+		index++;
+	}
+	a1[index] = NULL;
+	index++;
+	
+	// extract the second UNIX command before the pipe symbol (|)
+	char** a2 = (char**)malloc(MAX_ARGUMENTS * sizeof(char *));
+	int index2 = 0;
+	while (args[index] != NULL) {
+		a2[index2] = args[index];
+		printf("a2: %s\n", a2[index2]);
+		index2++;
+		index++;
+	}
+	a2[index] = NULL;
+	
+	bool runInBackground = extractRunInBackground(args);
+	
+	// create a child process and store its id in child_pid
+	child_pid = fork();
+	
+	if (child_pid < 0) {
+		perror("Fork 1 failed");
+		exit(1);
+	}
+	if (child_pid == 0) { 
+		
+		pipe(fd);
+		//fork another child process invoking fork() system call and perform the followings in this child process:
+		child_pid = fork();
+		if (child_pid < 0) {
+			perror("Fork failed");
+			exit(1);
+		}
+		if (child_pid == 0) {
+			//close the write end descriptor of the pipe invoking close() system call
+			close(fd[WRITE_END]);
+			//copy the read end  descriptor of the pipe to standard input file descriptor (STDIN_FILENO) invoking dup2() system call
+			dup2(fd[READ_END], STDIN_FILENO);
+			//change the process image of the this child with the new image according to the second UNIX command after the pipe symbol (|) using execvp() system call
+			if (execvp(a2[0], a2) < 0) { // catch error when executing command fail
+				perror(a2[0]);
+				exit(1);
+			}
+		}
+		else {
+			//close the read end descriptor of the pipe invoking close() system call
+			close(fd[READ_END]);
+			//copy the write end descriptor of the pipe to standard output file descriptor (STDOUT_FILENO) invoking dup2() system call
+			dup2(fd[WRITE_END], STDOUT_FILENO);
+			fflush(stdout);
+			//change the process image with the new process image according to the first UNIX command before the pipe symbol (|) using execvp() system call
+			if (execvp(a1[0], a1) < 0) { // catch error when executing command fail
+				perror(a1[0]);
+				exit(1);
+			}
+		}
+	}
+	else { 
+		// Executing inside parent process 
+		if (!runInBackground) {	// wait for child process stop
+			waitpid(child_pid, &stat_loc, WUNTRACED);
+			free(args); // free up memory for arguments
+			free(a1);
+			free(a2);
+		}
+		return;
+	}
+}
+
 void executeLastCommand() {
 	if (strcmp(lastCommand, "") == 0) { // catch empty history
 		printf("No commands in history.\n");
 	}
-	executeNormalCommand(lastCommand);
+	else if (strstr(lastCommand, ">") != NULL || strstr(lastCommand, "<") != NULL) { // command with redirecting
+		executeRedirectCommand(lastCommand);	
+	}
+	else if (strstr(lastCommand, "|")) { // pipe command
+		executePipeCommand(lastCommand);
+	}
+	else executeNormalCommand(lastCommand);
 }
 
 int getCommandType(char * command) {
@@ -119,9 +289,22 @@ int getCommandType(char * command) {
 	return 0; // default normal command
 }
 
-int main(void) {
-	char command[MAX_LENGTH];
+void getFirstWord(char* str, char* firstWord)
+{
+  int index = 0, i;
+  while(str[index] == ' ' || str[index] == '\t' || str[index] == '\n')
+    index++;
+	
+  i = 0;
+  while(str[i + index] != '\0' && str[i + index] != ' ' && str[index] != '\t') {
+    firstWord[i] = str[i + index];
+    i++;
+  }
+	firstWord[i] = '\0';
+}
 
+int main(void) {
+	char command[MAX_LENGTH], firstWord[MAX_LENGTH];
 	int should_run = 1;
 
 	while (should_run) {
@@ -135,6 +318,13 @@ int main(void) {
     		*pos = '\0';
 		}
 		
+		// check exit
+		getFirstWord(command, firstWord);
+		if (strcmp(firstWord, "exit") == 0) {
+			should_run = 0;
+			break;
+		}
+
 		//Parse command and arguments.
 		int commandType = getCommandType(command);
 
@@ -145,6 +335,12 @@ int main(void) {
 			break;
 		case 1:
 			executeLastCommand();
+			break;
+		case 2:
+			executeRedirectCommand(command);
+			break;
+		case 3:
+			executePipeCommand(command);
 			break;
 		default:
 			break;
