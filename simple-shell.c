@@ -27,22 +27,22 @@ char** getArgs(char* command) {
 	char **args = (char**)malloc(MAX_ARGUMENTS * sizeof(char *));
 	
 	if (args == NULL) { // catch system out of memory
-        perror("malloc failed");
-        exit(1);
-    }
+	  perror("malloc failed");
+    exit(1);
+  }
 
-    char *separator = " ";
-    char *parsed;
-    int index = 0;
+  char *separator = " ";
+  char *parsed;
+  int index = 0;
 
-    parsed = strtok(tmp, separator); // split args by space
-    while (parsed != NULL) {
-        args[index] = parsed;
-        index++;
-        parsed = strtok(NULL, separator);
-    }
-    args[index] = NULL; // insert NULL at the end of args list
-    return args;
+  parsed = strtok(tmp, separator); // split args by space
+  while (parsed != NULL) {
+    args[index] = parsed;
+    index++;
+    parsed = strtok(NULL, separator);
+  }
+  args[index] = NULL; // insert NULL at the end of args list
+  return args;
 }
 
 bool extractRunInBackground(char** args) { // check if last args is '&' and remove it
@@ -79,6 +79,7 @@ void executeNormalCommand(char* command) {
 
 	if (child_pid < 0) {
 		perror("Fork failed");
+		free(args); // free up memory for arguments
 		exit(1);
 	}
 
@@ -86,18 +87,18 @@ void executeNormalCommand(char* command) {
 		// Executing inside child process
 		if (execvp(args[0], args) < 0) { // catch error when executing command fail
 			perror(args[0]);
+			free(args); // free up memory for arguments
 			exit(1);
 		}
-		// if execvp success -> it never return and not run any code more
+		// if ace success -> it never return and not run any code more
 	} else { 
 		// Executing inside parent process 
 		if (!runInBackground) {	// wait for child process stop
 			waitpid(child_pid, &stat_loc, WUNTRACED);
-
-			free(args); // free up memory for arguments
 		}
-		return;
 	}
+
+	free(args); // free up memory for arguments
 }
 
 void executeRedirectCommand(char* command) {
@@ -128,6 +129,8 @@ void executeRedirectCommand(char* command) {
 	
 	if (child_pid < 0) {
 		perror("Fork failed");
+		free(args); // free up memory for arguments
+		free(a1);
 		exit(1);
 	}
 	
@@ -137,26 +140,34 @@ void executeRedirectCommand(char* command) {
 		if (strstr(command, ">") != NULL) {
 			newfd = open(args[index+1],  O_WRONLY | O_CREAT | O_TRUNC, 0644);
 			if (newfd<0) {
-			perror("open file output failed");	/* open failed */
-			exit(1);
+				perror("open file output failed");	/* open failed */
+				free(args); // free up memory for arguments
+				free(a1);
+				exit(1);
 			}
 			ret = dup2(newfd, STDOUT_FILENO);
 		}
 		else {
 			newfd = open(args[index+1],  O_RDONLY, 0);
 			if (newfd<0) {
-			perror("open file input failed");	/* open failed */
-			exit(1);
+				perror("open file input failed");	/* open failed */
+				free(args); // free up memory for arguments
+				free(a1);
+				exit(1);
 			}
 			ret = dup2(newfd, STDIN_FILENO);
 		}
 		if (ret < 0) {
 			perror("dup2 failed");
+			free(args); // free up memory for arguments
+			free(a1);
 			exit(1);
 		}
 		close(newfd);
 		if (execvp(a1[0], a1) < 0) { // catch error when executing command fail
 			perror(a1[0]);
+			free(args); // free up memory for arguments
+			free(a1);
 			exit(1);
 		}
 		// if execvp success -> it never return and not run any code more
@@ -164,18 +175,16 @@ void executeRedirectCommand(char* command) {
 		// Executing inside parent process 
 		if (!runInBackground) {	// wait for child process stop
 			waitpid(child_pid, &stat_loc, WUNTRACED);
-			free(args); // free up memory for arguments
-			free(a1);
 		}
-		return;
 	}
+	free(args); // free up memory for arguments
+	free(a1);
 }
 
 void executePipeCommand(char* command) {
 	if (strcmp(command, "") == 0) { // check for empty command
 		return;
 	}
-	printf("command: %s\n", command);
 	// store command to history
 	strcpy(lastCommand, command);
 
@@ -192,7 +201,6 @@ void executePipeCommand(char* command) {
 	int index = 0;
 	while (strstr(args[index],"|") == NULL) {
 		a1[index] = args[index];
-		printf("a1: %s\n", a1[index]);
 		index++;
 	}
 	a1[index] = NULL;
@@ -203,7 +211,6 @@ void executePipeCommand(char* command) {
 	int index2 = 0;
 	while (args[index] != NULL) {
 		a2[index2] = args[index];
-		printf("a2: %s\n", a2[index2]);
 		index2++;
 		index++;
 	}
@@ -216,6 +223,9 @@ void executePipeCommand(char* command) {
 	
 	if (child_pid < 0) {
 		perror("Fork 1 failed");
+		free(args); // free up memory for arguments
+		free(a1);
+		free(a2);
 		exit(1);
 	}
 	if (child_pid == 0) { 
@@ -225,6 +235,9 @@ void executePipeCommand(char* command) {
 		child_pid = fork();
 		if (child_pid < 0) {
 			perror("Fork failed");
+			free(args); // free up memory for arguments
+			free(a1);
+			free(a2);
 			exit(1);
 		}
 		if (child_pid == 0) {
@@ -235,6 +248,9 @@ void executePipeCommand(char* command) {
 			//change the process image of the this child with the new image according to the second UNIX command after the pipe symbol (|) using execvp() system call
 			if (execvp(a2[0], a2) < 0) { // catch error when executing command fail
 				perror(a2[0]);
+				free(args); // free up memory for arguments
+				free(a1);
+				free(a2);
 				exit(1);
 			}
 		}
@@ -247,6 +263,9 @@ void executePipeCommand(char* command) {
 			//change the process image with the new process image according to the first UNIX command before the pipe symbol (|) using execvp() system call
 			if (execvp(a1[0], a1) < 0) { // catch error when executing command fail
 				perror(a1[0]);
+				free(args); // free up memory for arguments
+				free(a1);
+				free(a2);
 				exit(1);
 			}
 		}
@@ -255,12 +274,11 @@ void executePipeCommand(char* command) {
 		// Executing inside parent process 
 		if (!runInBackground) {	// wait for child process stop
 			waitpid(child_pid, &stat_loc, WUNTRACED);
-			free(args); // free up memory for arguments
-			free(a1);
-			free(a2);
 		}
-		return;
 	}
+	free(args); // free up memory for arguments
+	free(a1);
+	free(a2);
 }
 
 void executeLastCommand() {
