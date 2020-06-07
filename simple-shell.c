@@ -67,13 +67,13 @@ void executeNormalCommand(char* command) {
 	// store command to history
 	strcpy(lastCommand, command);
 
-	pid_t child_pid;
-	int stat_loc;
-
 	// extract arguments from command
 	char** args = getArgs(command);
 
 	bool runInBackground = extractRunInBackground(args);
+
+	pid_t child_pid;
+	int stat_loc;
 
 	// create a child process and store its id in child_pid
 	child_pid = fork();
@@ -91,14 +91,13 @@ void executeNormalCommand(char* command) {
 			free(args); // free up memory for arguments
 			exit(1);
 		}
-		// if ace success -> it never return and not run any code more
+		// if execvp success -> it never returns and not run any code more
 	} else { 
 		// Executing inside parent process 
-		if (!runInBackground) {	// wait for child process stop
+		if (!runInBackground) {	// wait for the child process stop
 			waitpid(child_pid, &stat_loc, WUNTRACED);
 		}
 	}
-
 	free(args); // free up memory for arguments
 }
 
@@ -386,7 +385,9 @@ int main(void) {
 		default:
 			break;
 		}
-		
+	}
+	return 0;
+}
 		//If command contains output redirection argument
 		//	fork a child process invoking fork() system call and perform the followings in the child process:
 		//		open the redirected file in write only mode invoking open() system call
@@ -427,7 +428,4 @@ int main(void) {
 		//		change the process image with the new process image according to the UNIX command using execvp() system call
 		//	If command does not conatain & (ampersand) at the end
 		//		invoke wait() system call in parent process.
-	}
 
-	return 0;
-}
