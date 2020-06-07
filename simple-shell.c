@@ -307,7 +307,6 @@ int getCommandType(char * command) {
 		index ++;
 	}
 	free(args);
-	//printf("type:%d\n", type);
 	return type; 
 }
 
@@ -328,12 +327,15 @@ void executeLastCommand() {
 	executeNormalCommand(lastCommand);
 }
 
+// get first word of the command to check it is am exit command or not
 void getFirstWord(char* str, char* firstWord)
 {
   int index = 0, i;
+	// run until end of first word
   while(str[index] == ' ' || str[index] == '\t' || str[index] == '\n')
     index++;
 	
+	// run until end of the second word
   i = 0;
   while(str[i + index] != '\0' && str[i + index] != ' ' && str[index] != '\t') {
     firstWord[i] = str[i + index];
