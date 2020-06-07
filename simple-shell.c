@@ -19,7 +19,7 @@ char lastCommand[MAX_LENGTH];
 char tmp[MAX_LENGTH];
 
 char** getArgs(char* command) {
-	strcpy(tmp, command);
+  strcpy(tmp, command);
 	// remove trailling endline '\n' in command
 	char *p = strchr(tmp, '\n');
 	if (p)  *p = 0;
@@ -208,7 +208,7 @@ void executePipeCommand(char* command) {
 	a1[index] = NULL;
 	index++;
 	
-	// extract the second UNIX command before the pipe symbol (|)
+	// extract the second UNIX command after the pipe symbol (|)
 	char** a2 = (char**)malloc(MAX_ARGUMENTS * sizeof(char *));
 	int index2 = 0;
 	while (args[index] != NULL) {
@@ -247,6 +247,7 @@ void executePipeCommand(char* command) {
 			close(fd[WRITE_END]);
 			//copy the read end  descriptor of the pipe to standard input file descriptor (STDIN_FILENO) invoking dup2() system call
 			dup2(fd[READ_END], STDIN_FILENO);
+			close(fd[READ_END]);
 			//change the process image of the this child with the new image according to the second UNIX command after the pipe symbol (|) using execvp() system call
 			if (execvp(a2[0], a2) < 0) { // catch error when executing command fail
 				perror(a2[0]);
@@ -261,6 +262,7 @@ void executePipeCommand(char* command) {
 			close(fd[READ_END]);
 			//copy the write end descriptor of the pipe to standard output file descriptor (STDOUT_FILENO) invoking dup2() system call
 			dup2(fd[WRITE_END], STDOUT_FILENO);
+			close(fd[WRITE_END]);
 			fflush(stdout);
 			//change the process image with the new process image according to the first UNIX command before the pipe symbol (|) using execvp() system call
 			if (execvp(a1[0], a1) < 0) { // catch error when executing command fail
@@ -342,7 +344,7 @@ int main(void) {
 	while (should_run) {
 		printf("ssh>>");
 		fflush(stdout);
-		fgets(command, MAX_LENGTH, stdin);
+		fgets(command, MAX_LENGTH, stdin); // input command with MAX_LENGTH=80
 
 		// remove ending '\n' at the end of command
 		char *pos;
