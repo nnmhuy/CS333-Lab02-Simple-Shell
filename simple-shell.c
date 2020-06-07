@@ -24,6 +24,7 @@ char** getArgs(char* command) {
 	char *p = strchr(tmp, '\n');
 	if (p)  *p = 0;
 
+	// allocate memory for an array of arguments of the command
 	char **args = (char**)malloc(MAX_ARGUMENTS * sizeof(char *));
 	
 	if (args == NULL) { // catch system out of memory
@@ -111,16 +112,20 @@ void executeRedirectCommand(char* command) {
 	pid_t child_pid;
 	int stat_loc;
 	int newfd, ret;
-	bool isOut = true;
+	
 	// extract arguments from command
 	char** args = getArgs(command);
 	
+	// extract the UNIX command before the redirecting symbol (">" or "<")
 	char** a1 = (char**)malloc(MAX_ARGUMENTS * sizeof(char *));
 	int index = 0;
 	while (strcmp(args[index],">") != 0 && strcmp(args[index],"<") != 0) {
 		a1[index] = args[index];
 		index++;
 	}
+
+	// check the command is output redirecting or input redirecting. default isOut=true => OUTPUT redirecting command
+	bool isOut = true;
 	if (strcmp(args[index],"<") == 0) isOut = false;
 	a1[index] = NULL;
 	
@@ -258,9 +263,9 @@ void executePipeCommand(char* command) {
 			}
 		}
 		else {
-			//close the read end descriptor of the pipe invoking close() system call
+			//close the read end descriptor of the pipe 
 			close(fd[READ_END]);
-			//copy the write end descriptor of the pipe to standard output file descriptor (STDOUT_FILENO) invoking dup2() system call
+			//copy the write end descriptor of the pipe to standard output file descriptor (STDOUT_FILENO) and close the write end descriptor
 			dup2(fd[WRITE_END], STDOUT_FILENO);
 			close(fd[WRITE_END]);
 			fflush(stdout);
@@ -302,7 +307,7 @@ int getCommandType(char * command) {
 		index ++;
 	}
 	free(args);
-	printf("type:%d\n", type);
+	//printf("type:%d\n", type);
 	return type; 
 }
 
